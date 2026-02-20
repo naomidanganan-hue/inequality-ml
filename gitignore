@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py
+.ipynb_checkpoints/
+#enviroments
+.venv/
+venv/
+env/
+*.conda
+.conda/
+
+#OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
