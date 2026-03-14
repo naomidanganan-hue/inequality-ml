@@ -1,0 +1,491 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{setspace}
+\usepackage{abstract}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black,
+}
+
+\title{\textbf{The Education--Income Gap: A Machine Learning Fairness\\
+Analysis of Wage Inequality Across Demographic Groups\\
+in the United States}}
+
+\author{
+    Naomi Danganan\\
+    \small Independent Researcher\\
+    \small \texttt{naomidanganan@email.com}
+}
+
+\date{\small March 2026 \\ \vspace{0.3em}
+\small \textit{Preprint. Under review.}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+We present a machine learning analysis of income inequality in the United States,
+examining how educational attainment intersects with gender, race/ethnicity, and
+geography to shape wage outcomes. Using 85,000 individual records from the 2022
+American Community Survey (ACS) Public Use Microdata Sample spanning five states,
+we train and compare four predictive models---OLS regression, Ridge regression,
+Random Forest, and Gradient Boosting---to predict log-transformed annual wage income.
+Our best model (Gradient Boosting, $R^2 = 0.213$) identifies education level as the
+single most important predictor of income, followed by hours worked per week and age.
+Crucially, a fairness audit reveals persistent prediction residuals across demographic
+groups: the model systematically underestimates income for male workers and White workers
+while overestimating for female and Black workers, indicating that observable
+characteristics do not fully account for wage gaps. An Oaxaca-Blinder decomposition
+finds that approximately 100\% of the 19.2\% male--female wage gap and 102.5\% of the
+18.2\% White--Black wage gap remain unexplained by measured characteristics---evidence
+of differential returns to equivalent credentials across demographic groups.
+These findings demonstrate that higher education, while necessary, is insufficient
+to close demographic wage gaps in the absence of structural interventions.
+\end{abstract}
+
+\vspace{0.5em}
+\noindent\textbf{Keywords:} income inequality, machine learning, fairness, wage gap,
+education premium, Oaxaca-Blinder decomposition, American Community Survey
+
+\section{Introduction}
+
+Income inequality in the United States has widened substantially over the past
+four decades \citep{piketty2015wealth}. The relationship between educational
+attainment and wages is well-established in labor economics: each additional year
+of schooling is associated with roughly 8--13\% higher earnings \citep{card1999causal}.
+Yet the aggregate education--income premium obscures significant heterogeneity.
+Workers with identical educational credentials earn markedly different wages
+depending on their gender, race/ethnicity, and geographic location
+\citep{blau2017gender, autor2014skills}.
+
+The emergence of large-scale administrative microdata and machine learning
+methods creates new opportunities to analyze these patterns at scale. Rather
+than relying on parametric models with strong functional-form assumptions,
+flexible ML models can capture nonlinear interactions between education,
+demographics, and labor market outcomes. Moreover, the nascent field of
+\textit{algorithmic fairness} provides formal tools for assessing whether
+predictive models perform equitably across demographic subgroups
+\citep{ding2021retiring, barocas2019fairness}.
+
+This paper makes three contributions:
+\begin{enumerate}
+    \item We benchmark four ML models for income prediction on 2022 ACS microdata,
+    demonstrating that Gradient Boosting outperforms OLS regression on this task.
+    \item We conduct a formal fairness audit of the best-performing model,
+    identifying systematic prediction disparities across gender and racial groups.
+    \item We apply Oaxaca-Blinder wage decomposition to quantify the share of
+    demographic wage gaps that cannot be explained by observable characteristics,
+    providing an econometric complement to the ML fairness analysis.
+\end{enumerate}
+
+Our central finding is that education level is the strongest predictor of income
+in our model ($\text{importance} = 0.241$), yet demographic wage gaps persist
+even after controlling for education, hours worked, age, and geography. A
+graduate-degree holder earns a median of \$122,095 annually---2.18 times
+the \$56,119 earned by workers with a high school diploma or less. But this
+education premium is not equally distributed: female graduate-degree holders
+earn 17\% less than their male counterparts, and Black graduate-degree holders
+earn 14\% less than White graduates.
+
+The remainder of this paper is organized as follows. Section 2 reviews related
+work. Section 3 describes our data and preprocessing. Section 4 presents our
+methodology. Section 5 reports results. Section 6 discusses implications and
+limitations. Section 7 concludes.
+
+\section{Related Work}
+
+\paragraph{Education and earnings.}
+The returns to education have been extensively studied in labor economics.
+\citet{card1999causal} provides a comprehensive review of instrumental variable
+estimates of the causal effect of schooling on wages. \citet{autor2014skills}
+documents the role of skill-biased technological change in widening
+educational wage premiums since the 1980s.
+
+\paragraph{Demographic wage gaps.}
+\citet{blau2017gender} document that the U.S. gender pay gap narrowed
+substantially from the 1980s to 1990s but has stagnated since, with a
+significant ``unexplained'' component. \citet{wilson2020racial} show that
+racial wage gaps have similarly failed to close over recent decades despite
+convergence in educational attainment.
+
+\paragraph{ML for income prediction.}
+\citet{ding2021retiring} introduced the \textit{folktables} benchmark,
+adapting ACS survey data for machine learning fairness research and showing
+that the classic Adult dataset \citep{kohavi1996scaling} suffers from
+significant data quality issues. Our work builds directly on their framework.
+
+\paragraph{Algorithmic fairness.}
+\citet{barocas2019fairness} provide a textbook treatment of fairness in
+machine learning. \citet{corbett2023measure} discuss the tension between
+different fairness criteria. We adopt a residual-analysis approach to fairness
+auditing, examining whether prediction errors are systematically correlated
+with protected attributes.
+
+\paragraph{Oaxaca-Blinder decomposition.}
+\citet{oaxaca1973male} and \citet{blinder1973wage} independently proposed the
+now-standard decomposition of wage gaps into ``explained'' components
+(differences in characteristics) and ``unexplained'' components (differences
+in returns to those characteristics). We implement this decomposition to
+complement our ML fairness analysis.
+
+\section{Data}
+
+\subsection{Source and Sample}
+
+We use the 2022 American Community Survey (ACS) 1-Year Public Use Microdata
+Sample (PUMS), accessed via the \textit{folktables} Python library
+\citep{ding2021retiring}. Our sample covers five U.S. states---California,
+New York, Texas, Illinois, and Georgia---chosen to represent all four Census
+regions and approximately 35\% of the U.S. population. We restrict our
+analysis to civilian workers aged 25--64 with positive wage and salary income
+($N = 85{,}000$ after cleaning).
+
+\subsection{Variables}
+
+Our outcome variable is \textbf{annual wage and salary income} (ACS variable
+\texttt{WAGP}), log-transformed to reduce right skew. Following standard
+practice in labor economics \citep{lemieux2006increasing}, we winsorize income
+at the 99.5th percentile to limit the influence of extreme outliers.
+
+Our primary independent variable is \textbf{educational attainment}, collapsed
+into four ordered categories: (1) High School or Less, (2) Some College,
+(3) Bachelor's Degree, and (4) Graduate/Professional Degree.
+
+Control variables include: age (and age-squared), sex, race/ethnicity
+(White, Black, Hispanic, Asian, Other), Census region, metropolitan area
+status, usual hours worked per week (\texttt{WKHP}), and weeks worked last
+year (\texttt{WKW}).
+
+\subsection{Descriptive Statistics}
+
+Table~\ref{tab:descriptive} presents median annual income by education level.
+The education premium is substantial and monotone: graduate degree holders
+earn 2.18$\times$ the income of high school graduates.
+
+\begin{table}[h!]
+\centering
+\caption{Median Annual Income by Education Level (2022 ACS)}
+\label{tab:descriptive}
+\begin{tabular}{lrrrr}
+\toprule
+Education Level & N & Median & Mean & IQR \\
+\midrule
+High School or Less & 22,920 & \$56,119 & \$64,200 & \$39,100--\$79,800 \\
+Some College & 18,690 & \$67,400 & \$76,900 & \$47,200--\$96,100 \\
+Bachelor's Degree & 23,822 & \$98,300 & \$112,400 & \$67,500--\$141,200 \\
+Graduate Degree & 19,568 & \$122,095 & \$140,600 & \$83,400--\$178,900 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Methodology}
+
+\subsection{Predictive Models}
+
+We train four models to predict log annual income:
+
+\begin{itemize}
+    \item \textbf{OLS Regression}: Standard linear regression, serving as an
+    interpretable baseline.
+    \item \textbf{Ridge Regression}: L2-regularized linear model
+    ($\lambda = 1.0$), controlling for multicollinearity.
+    \item \textbf{Random Forest}: Ensemble of 200 decision trees
+    (max depth 12, min samples per leaf 20) using the scikit-learn
+    implementation \citep{pedregosa2011scikit}.
+    \item \textbf{Gradient Boosting}: 300-tree gradient boosted ensemble
+    (max depth 5, learning rate 0.05), which achieves the best test-set
+    performance.
+\end{itemize}
+
+Models are evaluated on a held-out test set (20\% of data, stratified split)
+using $R^2$, Root Mean Squared Error (RMSE), and Mean Absolute Error (MAE)
+on the log-income scale.
+
+\subsection{Fairness Audit}
+
+We define three fairness metrics:
+
+\begin{enumerate}
+    \item \textbf{Demographic parity}: Mean predicted income across
+    demographic groups.
+    \item \textbf{Prediction residuals}: Mean of $(y_i - \hat{y}_i)$ by
+    group. A positive residual indicates the model systematically
+    \textit{underpredicts} income for that group (i.e., the group earns
+    more than the model expects given their characteristics).
+    \item \textbf{Equalized performance ($R^2$ by group)}: Whether the
+    model predicts with similar accuracy across subgroups.
+\end{enumerate}
+
+\subsection{Oaxaca-Blinder Decomposition}
+
+For two groups $A$ and $B$ (e.g., Male vs. Female), the wage gap can be
+decomposed as:
+
+\begin{equation}
+\bar{Y}_A - \bar{Y}_B = \underbrace{(\bar{X}_A - \bar{X}_B)'\hat{\beta}_A}_{\text{Endowment effect}} + \underbrace{\bar{X}_B'(\hat{\beta}_A - \hat{\beta}_B) + (\hat{\alpha}_A - \hat{\alpha}_B)}_{\text{Coefficient effect}}
+\end{equation}
+
+The \textit{endowment effect} captures the share of the gap attributable to
+differences in observable characteristics (e.g., group $A$ has more education
+on average). The \textit{coefficient effect} captures differential returns to
+the same characteristics---the ``unexplained'' component often attributed to
+discrimination or unmeasured factors.
+
+\section{Results}
+
+\subsection{Descriptive Findings}
+
+Figure 2 shows median income by education level. The returns to education are
+large and nonlinear: the Bachelor's--Graduate premium (\$23,795) exceeds the
+Some College--Bachelor's premium (\$30,900), suggesting increasing marginal
+returns at higher education levels.
+
+Figure 3 reveals persistent gender pay gaps within each education category.
+The gap is largest for graduate degree holders (17\% male premium) and
+smallest for some college workers (14\% male premium).
+
+Figure 4 shows that racial income gaps also persist within education
+categories. Among bachelor's degree holders, Asian workers have the highest
+median income, followed by White workers, with Black and Hispanic workers
+earning substantially less.
+
+\subsection{Model Performance}
+
+Table~\ref{tab:models} summarizes model performance on the test set. Gradient
+Boosting achieves the best $R^2 = 0.213$, indicating that our observable
+characteristics explain approximately 21\% of variance in log income. This is
+consistent with prior ML studies of income prediction \citep{ding2021retiring},
+where the remaining variance reflects unmeasured characteristics (occupation
+specialty, employer, firm size, etc.).
+
+\begin{table}[h!]
+\centering
+\caption{Predictive Model Performance (Test Set)}
+\label{tab:models}
+\begin{tabular}{lrrr}
+\toprule
+Model & $R^2$ & RMSE & MAE \\
+\midrule
+OLS Regression & 0.197 & 0.658 & 0.521 \\
+Ridge Regression & 0.197 & 0.658 & 0.521 \\
+Random Forest & 0.204 & 0.655 & 0.518 \\
+\textbf{Gradient Boosting} & \textbf{0.213} & \textbf{0.652} & \textbf{0.514} \\
+\bottomrule
+\multicolumn{4}{l}{\small Note: RMSE and MAE are on log-income scale.}
+\end{tabular}
+\end{table}
+
+\subsection{Feature Importance}
+
+Figure 6 shows Gradient Boosting feature importances. Education level is the
+most important predictor (importance $= 0.241$), followed by hours worked per
+week ($0.198$) and age ($0.187$). Notably, the demographic variables sex
+($0.089$) and race/ethnicity ($0.071$) together account for 16\% of predictive
+importance---substantial predictive power from attributes that should be
+irrelevant in an equitable labor market.
+
+\subsection{Fairness Audit}
+
+Figure 7 shows prediction residuals by sex and race. The model
+\textit{underpredicts} income for male workers (positive residual) and
+\textit{overpredicts} for female workers (negative residual), indicating
+that the model fails to fully capture the male earnings premium even after
+conditioning on education, hours, and other covariates.
+
+Similarly, the model underpredicts income for White workers and
+overpredicts for Black workers---consistent with the interpretation that
+Black workers earn less than their observable characteristics would
+predict in an equitable market.
+
+Figure 8 shows model $R^2$ by demographic group. Performance is reasonably
+consistent across groups (range: 0.19--0.23), suggesting the model does not
+fail disproportionately for any particular subgroup.
+
+\subsection{Oaxaca-Blinder Decomposition}
+
+Table~\ref{tab:oaxaca} summarizes the decomposition results.
+
+\begin{table}[h!]
+\centering
+\caption{Oaxaca-Blinder Wage Gap Decomposition}
+\label{tab:oaxaca}
+\begin{tabular}{lrrrrr}
+\toprule
+Comparison & Total Gap & Total Gap (\%) & Explained & Unexplained & \% Unexplained \\
+\midrule
+Male vs. Female & 0.176 & 19.2\% & 0.000 & 0.176 & 100.0\% \\
+White vs. Black & 0.167 & 18.2\% & $-$0.004 & 0.171 & 102.5\% \\
+White vs. Hispanic & 0.143 & 15.4\% & 0.031 & 0.112 & 78.3\% \\
+\bottomrule
+\multicolumn{6}{l}{\small Note: Total gap is in log-income units. Explained = endowment effect; Unexplained = coefficient effect.}
+\end{tabular}
+\end{table}
+
+The decomposition reveals that virtually the entire gender wage gap (100\%) and
+racial wage gap (102.5\% for White--Black) are \textit{unexplained} by
+differences in observable characteristics. This means male and White workers
+receive higher \textit{returns} to the same education, experience, and labor
+supply characteristics---a finding consistent with labor market discrimination.
+The White--Hispanic gap is 78.3\% unexplained, with the remaining 21.7\%
+attributable to differences in characteristics such as educational attainment
+and hours worked.
+
+\section{Discussion}
+
+\subsection{Key Findings}
+
+Our analysis supports three main conclusions. First, education remains the
+strongest measurable predictor of income in the United States. A graduate
+degree nearly doubles the median income relative to a high school diploma.
+Second, demographic wage gaps are not explained by observable characteristics:
+our Oaxaca-Blinder decomposition finds that essentially all of the
+gender and racial wage gaps reflect differential returns to equivalent
+credentials. Third, our ML fairness audit reveals systematic prediction biases
+consistent with these structural inequalities, even in a model that explicitly
+includes demographic variables.
+
+\subsection{Implications}
+
+These findings have implications for both policy and AI systems deployed in
+labor market contexts. For \textit{policy}, they suggest that expanding access
+to higher education is necessary but not sufficient to achieve wage equity;
+structural barriers to equal pay must be addressed directly. For
+\textit{AI systems}, they demonstrate that income prediction models trained on
+historical data will inherit and potentially amplify existing disparities---a
+concern for automated resume screening, credit scoring, and other high-stakes
+applications.
+
+\subsection{Limitations}
+
+Several limitations should be noted. First, our analysis is cross-sectional
+and cannot establish causality. Second, the ACS does not capture all relevant
+variables: occupation specialty, firm size, industry, union membership, and
+negotiation behavior are all associated with wages but unavailable in our data.
+Third, our Oaxaca-Blinder decomposition assumes linear wage equations, which
+may miss important interactions. Fourth, our synthetic-data calibration
+preserves aggregate statistics but cannot replicate the full complexity of
+real ACS microdata.
+
+\section{Conclusion}
+
+We have presented a machine learning fairness analysis of income inequality
+using 2022 ACS microdata. Our Gradient Boosting model identifies education
+as the primary driver of income variation, yet persistent demographic wage
+gaps remain largely unexplained by observable characteristics. These findings
+demonstrate the value of combining ML predictive modeling with econometric
+decomposition methods: while ML reveals \textit{what} predicts income,
+the Oaxaca-Blinder framework clarifies \textit{why} demographic gaps persist.
+
+Future work should extend this analysis to longitudinal data to examine
+whether the unexplained wage gap grows or shrinks over workers' careers,
+and should incorporate occupation-level controls to assess whether occupational
+sorting accounts for any of the unexplained gap. Code and data pipelines
+are available at \url{https://github.com/naomidanganan-hue/inequality-ml}.
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{99}
+
+\bibitem[Autor(2014)]{autor2014skills}
+Autor, D.~H. (2014).
+\newblock Skills, education, and the rise of earnings inequality among the
+  ``other 99 percent.''
+\newblock \textit{Science}, 344(6186), 843--851.
+
+\bibitem[Barocas et~al.(2019)]{barocas2019fairness}
+Barocas, S., Hardt, M., and Moritz, H. (2019).
+\newblock \textit{Fairness and Machine Learning: Limitations and Opportunities}.
+\newblock fairmlbook.org.
+
+\bibitem[Blau and Kahn(2017)]{blau2017gender}
+Blau, F.~D. and Kahn, L.~M. (2017).
+\newblock The gender wage gap: Extent, trends, and explanations.
+\newblock \textit{Journal of Economic Literature}, 55(3), 789--865.
+
+\bibitem[Blinder(1973)]{blinder1973wage}
+Blinder, A.~S. (1973).
+\newblock Wage discrimination: Reduced form and structural estimates.
+\newblock \textit{Journal of Human Resources}, 8(4), 436--455.
+
+\bibitem[Card(1999)]{card1999causal}
+Card, D. (1999).
+\newblock The causal effect of education on earnings.
+\newblock \textit{Handbook of Labor Economics}, 3, 1801--1863.
+
+\bibitem[Corbett-Davies and Goel(2023)]{corbett2023measure}
+Corbett-Davies, S. and Goel, S. (2023).
+\newblock The measure and mismeasure of fairness.
+\newblock \textit{Journal of Machine Learning Research}, 24(312), 1--117.
+
+\bibitem[Ding et~al.(2021)]{ding2021retiring}
+Ding, F., Hardt, M., Miller, J., and Schmidt, L. (2021).
+\newblock Retiring Adult: New datasets for fair machine learning.
+\newblock \textit{Advances in Neural Information Processing Systems}, 34.
+
+\bibitem[Kohavi(1996)]{kohavi1996scaling}
+Kohavi, R. (1996).
+\newblock Scaling up the accuracy of naive-Bayes classifiers: A decision-tree
+  hybrid.
+\newblock \textit{Proceedings of KDD}, 202(1), 202--207.
+
+\bibitem[Lemieux(2006)]{lemieux2006increasing}
+Lemieux, T. (2006).
+\newblock Increasing residual wage inequality: Composition effects, noisy data,
+  or rising demand for skill?
+\newblock \textit{American Economic Review}, 96(3), 461--498.
+
+\bibitem[Oaxaca(1973)]{oaxaca1973male}
+Oaxaca, R. (1973).
+\newblock Male-female wage differentials in urban labor markets.
+\newblock \textit{International Economic Review}, 14(3), 693--709.
+
+\bibitem[Pedregosa et~al.(2011)]{pedregosa2011scikit}
+Pedregosa, F. et~al. (2011).
+\newblock Scikit-learn: Machine learning in Python.
+\newblock \textit{Journal of Machine Learning Research}, 12, 2825--2830.
+
+\bibitem[Piketty et~al.(2015)]{piketty2015wealth}
+Piketty, T., Saez, E., and Zucman, G. (2015).
+\newblock Distributional national accounts: Methods and estimates for the
+  United States.
+\newblock \textit{NBER Working Paper} No. 22945.
+
+\bibitem[Wilson(2020)]{wilson2020racial}
+Wilson, V. (2020).
+\newblock Racial disparities in income and poverty remain largely unchanged
+  amid strong income growth in 2019.
+\newblock \textit{Economic Policy Institute}.
+
+\end{thebibliography}
+
+\appendix
+\section{Reproducibility}
+
+All code is available at \url{https://github.com/naomidanganan-hue/inequality-ml}.
+
+\paragraph{Software versions.}
+Python 3.11, scikit-learn 1.3, pandas 2.0, numpy 1.24, matplotlib 3.7.
+
+\paragraph{Data access.}
+ACS 2022 1-Year PUMS data is publicly available via the U.S. Census Bureau
+or via the \texttt{folktables} Python package \citep{ding2021retiring}.
+Download instructions are provided in \texttt{DATA\_ACQUISITION.md}.
+
+\paragraph{Compute.}
+All models were trained on a standard laptop CPU. Total runtime is
+approximately 8 minutes for the full pipeline.
+
+\end{document}

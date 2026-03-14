@@ -1,0 +1,29 @@
+# Core data science
+pandas>=2.0
+numpy>=1.24
+scipy>=1.11
+
+# ML
+scikit-learn>=1.3
+xgboost>=2.0
+
+# ML Fairness
+fairlearn>=0.10
+
+# Visualization
+matplotlib>=3.7
+seaborn>=0.13
+
+# Data access
+folktables>=0.0.11   # ACS download (Option B)
+
+# Notebook
+jupyter>=1.0
+ipykernel>=6.0
+
+# Quality / testing
+pytest>=7.4
+pytest-cov>=4.0
+
+# Optional: faster parquet I/O
+pyarrow>=13.0
