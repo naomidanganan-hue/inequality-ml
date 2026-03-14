@@ -1,34 +1,28 @@
-# Inequality-ML
+# Income Inequality & ML Fairness Analysis
 
-This project explores **income inequality** by analyzing how **income differs across education levels** (and age) using a small sample dataset.
+A machine learning fairness analysis of wage inequality across demographic 
+groups in the United States, using 2022 American Community Survey (ACS) data.
 
-## What’s inside
-- **Data**: `data/raw/income_sample.csv` (columns: `age`, `education`, `income`)
-- **Notebooks**:
-  - `notebooks/01_python_basics.ipynb` — Python/pandas practice
-  - `notebooks/02_data_analysis.ipynb` — main analysis (load → group → summarize → plot)
-- **Outputs** (saved in `docs/`):
-  - `avg_income_by_education.png` — bar chart of average income by education
-  - `income_by_education_summary.csv` — summary table (count/mean/min/max)
-  - `report.md` — short written report
+## Paper
+📄 Preprint — arXiv submission pending endorsement
 
-## Method (high level)
-1. Load the CSV into a pandas DataFrame
-2. Group by `education` and compute summary statistics
-3. Visualize average income by education using a bar chart
-4. Export results (chart + summary table) and document findings in a short report
+## Key Findings
+- Education is the single strongest predictor of income (feature importance = 0.241)
+- A graduate degree earns 2.18× the median income of a high school diploma
+- 100% of the gender wage gap is unexplained by observable characteristics
+- 102.5% of the White–Black wage gap is unexplained by observable characteristics
+- Gradient Boosting achieves R²=0.213, outperforming OLS baseline
 
-## Key takeaway (from this sample)
-Average income increases with education level in the dataset (Graduate > College > HS).
+## Methods
+- 4 ML models: OLS, Ridge, Random Forest, Gradient Boosting
+- Fairness audit: demographic parity, residual bias, equalized R² by group
+- Oaxaca-Blinder decomposition of gender and racial wage gaps
+- Dataset: 85,000 records from 2022 ACS PUMS (5 states)
 
-## How to run
-Open `notebooks/02_data_analysis.ipynb` in VS Code and run cells from top to bottom.
+## Reproduce
+pip install -r requirements.txt
+python download_acs.py
+python run_analysis.py
 
-### Requirements
-- Python 3.x
-- pandas
-- matplotlib
-
-Install:
-```bash
-pip install pandas matplotlib
+## Author
+Naomi Danganan — Independent Researcher
