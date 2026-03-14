@@ -4,7 +4,7 @@ A machine learning fairness analysis of wage inequality across demographic
 groups in the United States, using 2022 American Community Survey (ACS) data.
 
 ## Paper
-📄 Preprint — arXiv submission pending endorsement
+📄 [Read on SSRN](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6417458)
 
 ## Key Findings
 - Education is the single strongest predictor of income (feature importance = 0.241)
