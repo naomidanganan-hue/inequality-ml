@@ -6,6 +6,10 @@ groups in the United States, using 2022 American Community Survey (ACS) data.
 ## Paper
 📄 [Read on SSRN](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6417458)
 
+## Acknowledgments
+The author thanks Professor Yaser S. Abu-Mostafa of the California 
+Institute of Technology for his encouragement and support.
+
 ## Key Findings
 - Education is the single strongest predictor of income (feature importance = 0.241)
 - A graduate degree earns 2.18× the median income of a high school diploma
